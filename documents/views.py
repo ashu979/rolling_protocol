@@ -95,7 +95,7 @@ def view_file(request, doc_title):
             file_name = row[1] if row[1] else f'document_{doc_title}.pdf'
             action_status1 = row[2]
 
-            if action_status1 =='Approved':
+            if action_status1 =='Prepared':
                 # Open directly in browser
                 response = HttpResponse(file_data, content_type='application/pdf')
                 response['Content-Disposition'] = 'inline'  # Opens in browser
