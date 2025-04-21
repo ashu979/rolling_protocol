@@ -75,8 +75,8 @@ def view_file(request, doc_title):
         # If access exists but has expired, deny access permanently
         if now() > access_time + timedelta(minutes=10):  
             return render(request, "documents/expired.html")
-        else:
-            return render(request, "documents/expired.html")
+        # else:
+        #     return render(request, "documents/expired.html")
 
     else:
         # Store access time in cache (valid for 10 minutes)
