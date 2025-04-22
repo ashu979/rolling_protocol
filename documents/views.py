@@ -1,9 +1,12 @@
 from django.shortcuts import render, redirect
 from django.db import connection
-from django.http import HttpResponse
+from django.http import HttpResponse , JsonResponse
 from django.utils.timezone import now
 from datetime import timedelta
 from django.core.cache import cache
+import jwt
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+from .utils import create_one_time_token
 
 #  List documents
 def document_list(request):
@@ -43,98 +46,58 @@ def fetch_pdf(request, doc_title):
 
 
 #  View file directly in browser
+
+SECRET_KEY = 'mes-dolvi-rolling-protocol'
+
 def view_file(request, doc_title):
+    token = request.GET.get('token')  # or request.headers.get('Authorization')
+
+    if not token:
+        # return HttpResponse("Token missing", status=401)
+        token = create_one_time_token(doc_title)
+        return redirect(f"{request.path}?token={token}")
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        jti = payload.get('jti')
+
+        if not jti:
+            return HttpResponse("Invalid token", status=401)
+
      
-    cache_key = f"accessed_doc_{doc_title}"  # Unique cache key for the document
-    access_time = cache.get(cache_key)
-
-    accessed_docs = request.session.get('accessed_docs', {})
-
-    # If session exists and time expired, deny access
-    # if str(doc_id) in accessed_docs:
-    #     access_time = accessed_docs[str(doc_id)]
-    #     if now() > access_time + timedelta(minutes=2):  # Expires after 2 minutes
-    #         del accessed_docs[str(doc_id)]  
-    #         request.session['accessed_docs'] = accessed_docs
-    #         # return HttpResponse("<h3 style='color:red;'>URL expired. Please request access again.</h3>", status=403)
-    #         return render(request, "documents/expired.html")
-    #     else:
-    #             del accessed_docs[str(doc_id)]  
-    #             request.session['accessed_docs'] = accessed_docs
-    #             # return HttpResponse("<h3 style='color:red;'>URL expired. Please request access again.</h3>", status=403)
-    #             return render(request, "documents/expired.html")
-
-
-    # else:
-    #     accessed_docs[str(doc_id)] = now()
-    #     request.session['accessed_docs'] = accessed_docs
-        # request.session.modified = True  # Ensure session updates
-
-
-    if access_time:
-        # If access exists but has expired, deny access permanently
-        if now() > access_time + timedelta(minutes=10):  
+        if cache.get(f'used_jti_{jti}'):
             return render(request, "documents/expired.html")
-        # else:
-        #     return render(request, "documents/expired.html")
 
-    else:
-        # Store access time in cache (valid for 10 minutes)
-        cache.set(cache_key, now(), timeout=600)  # 600 seconds timeout
+       
+        cache.set(f'used_jti_{jti}', True, timeout=600)  # Store for 10 minutes
 
-    # return render(request, "documents/view_file.html", {"doc_id": doc_id})
+    except ExpiredSignatureError:
+        return render(request, "documents/expired.html")
+    except InvalidTokenError:
+        return HttpResponse("Invalid token", status=401)
 
+   
     with connection.cursor() as cursor:
-        cursor.execute("SELECT doc_file, doc_file_name , action_status1 FROM document_access WHERE doc_title = %s", [doc_title])
+        cursor.execute(
+            "SELECT doc_file, doc_file_name, action_status1 FROM document_access WHERE doc_title = %s",
+            [doc_title]
+        )
         row = cursor.fetchone()
-    
-  
 
         if row and row[0]:
-            file_data = row[0]  # BLOB data
+            file_data = row[0]
             file_name = row[1] if row[1] else f'document_{doc_title}.pdf'
             action_status1 = row[2]
 
-            if action_status1 =='Prepared':
-                # Open directly in browser
+            if action_status1 == 'Prepared':
                 response = HttpResponse(file_data, content_type='application/pdf')
-                response['Content-Disposition'] = 'inline'  # Opens in browser
+                response['Content-Disposition'] = 'inline'
                 return response
-            
-            else : 
+            else:
                 return HttpResponse("This document is not yet approved!")
-        # if row:
-        #     file_name = row[0] if row[0] else f'document_{doc_id}.pdf'
-        #     file_url = f"/media/documents/{file_name}"  # Assuming files are served from /media/documents/
-
-        #     return render(request, "documents/view_file.html", {"file_url": file_url})
         else:
-            # return HttpResponse("File not found", status=404)
             return HttpResponse("Please enter correct grade and try again!", status=404)
-    
 
-# # ✅ Download file
-# def download_file(request, doc_id):
-#     with connection.cursor() as cursor:
-#         cursor.execute("SELECT doc_file, doc_file_name FROM document_access WHERE DOC_id = %s", [doc_id])
-#         row = cursor.fetchone()
-    
-#     if row and row[0]:
-#         file_data = row[0]  # BLOB data
-#         file_name = row[1] if row[1] else f'document_{doc_id}.pdf'
-        
-#         # Prompt file download
-#         response = HttpResponse(file_data, content_type='application/octet-stream')
-#         response['Content-Disposition'] = f'attachment; filename="{file_name}"'
-#         return response
-#     else:
-#         return HttpResponse("File not found", status=404)
-    
-
-
-# def clear_session(request):
-#     request.session.flush()  # Clears session data on refresh
-#     return HttpResponse("<h3 style='color:red;'>Session Refreshed! Please request access again.</h3>", status=403)
 
 def clear_session(request):
     # """Clear session and redirect to document list"""
