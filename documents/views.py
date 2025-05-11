@@ -77,10 +77,25 @@ def view_file(request, doc_title):
         return HttpResponse("Invalid token", status=401)
 
    
+    # with connection.cursor() as cursor:
+    #     cursor.execute(
+    #         "SELECT doc_file, doc_file_name, action_status1 FROM document_access WHERE doc_title = %s",
+    #         [doc_title]
+    #     )
+    #     row = cursor.fetchone()
     with connection.cursor() as cursor:
         cursor.execute(
-            "SELECT doc_file, doc_file_name, action_status1 FROM document_access WHERE doc_title = %s",
-            [doc_title]
+            """
+            SELECT doc_file, doc_file_name, action_status1 
+            FROM document_access 
+            WHERE doc_title = %s 
+              AND revision_no = (
+                  SELECT MAX(revision_no) 
+                  FROM document_access 
+                  WHERE doc_title = %s
+              )
+            """,
+            [doc_title, doc_title]
         )
         row = cursor.fetchone()
 
@@ -106,4 +121,23 @@ def clear_session(request):
 
 def expired_view(request):
     return render(request, "documents/expired.html")
+
+
+
+# with connection.cursor() as cursor:
+#     cursor.execute(
+#         """
+#         SELECT doc_file, doc_file_name, action_status1 
+#         FROM document_access 
+#         WHERE doc_title = %s 
+#           AND revision_no = (
+#               SELECT MAX(revision_no) 
+#               FROM document_access 
+#               WHERE doc_title = %s
+#           )
+#         """,
+#         [doc_title, doc_title]
+#     )
+#     row = cursor.fetchone()
+
 
