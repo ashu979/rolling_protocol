@@ -86,7 +86,7 @@ def view_file(request, doc_title):
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT doc_file, doc_file_name, action_status1 
+            SELECT doc_file, doc_file_name, action_status1,action_status2,approver_name1,approver_name2
             FROM document_access 
             WHERE doc_title = %s 
               AND revision_no = (
@@ -103,15 +103,27 @@ def view_file(request, doc_title):
             file_data = row[0]
             file_name = row[1] if row[1] else f'document_{doc_title}.pdf'
             action_status1 = row[2]
+            action_status2 = row[3]
+            approver_name1 = row[4]
+            approver_name2 = row[5]
 
-            if action_status1 == 'Prepared':
+            if action_status1 == 'Approved' and action_status2 == 'Approved':
                 response = HttpResponse(file_data, content_type='application/pdf')
                 response['Content-Disposition'] = 'inline'
                 return response
             else:
-                return HttpResponse("This document is not yet approved!")
+                # return HttpResponse("This document is not yet approved!")
+                if action_status1 != 'Approved' and action_status2 != 'Approved':
+                    data = {"names": [approver_name1, approver_name2]}
+                elif action_status1 != 'Approved':
+                    data = {"names": [approver_name1]}
+                elif action_status2 != 'Approved':
+                    data = {"names": [approver_name2]}
+                    
+                return render(request, "documents/not_approved.html",data)
         else:
-            return HttpResponse("Please enter correct grade and try again!", status=404)
+            # return HttpResponse("Please enter correct grade and try again!", status=404)
+            return render(request, "documents/invalid_grade.html")
 
 
 def clear_session(request):
