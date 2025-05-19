@@ -107,19 +107,19 @@ def view_file(request, doc_title):
             approver_name1 = row[4]
             approver_name2 = row[5]
 
-            if action_status1 == 'Approved' and action_status2 == 'Approved':
+            if  action_status2 == 'Approved':
                 response = HttpResponse(file_data, content_type='application/pdf')
                 response['Content-Disposition'] = 'inline'
                 return response
             else:
                 # return HttpResponse("This document is not yet approved!")
-                if action_status1 != 'Approved' and action_status2 != 'Approved':
-                    data = {"names": [approver_name1, approver_name2]}
-                elif action_status1 != 'Approved':
-                    data = {"names": [approver_name1]}
-                elif action_status2 != 'Approved':
-                    data = {"names": [approver_name2]}
-                    
+                # if action_status1 != 'Approved' and action_status2 != 'Approved':
+                #     data = {"names": [approver_name1, approver_name2]}
+                # elif action_status1 != 'Approved':
+                #     data = {"names": [approver_name1]}
+                # elif action_status2 != 'Approved':
+                data = {"names": [approver_name2]}
+
                 return render(request, "documents/not_approved.html",data)
         else:
             # return HttpResponse("Please enter correct grade and try again!", status=404)
